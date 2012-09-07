@@ -1,6 +1,8 @@
 package ocaml.build.graph;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import ocaml.OcamlPlugin;
@@ -17,8 +19,6 @@ import org.eclipse.core.resources.IWorkspaceRoot;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.Path;
-
-
 
 /**
  * Un visiteur très spécial : il visite d'abord un sommet et ensuite traite ses
@@ -45,8 +45,8 @@ import org.eclipse.core.runtime.Path;
  */
 
 /**
- * A visitor to visit a graph vertex first, and then handle its required files (using ocamldep). This is
- * useful to compute all the dependencies from a file.
+ * A visitor to visit a graph vertex first, and then handle its required files
+ * (using ocamldep). This is useful to compute all the dependencies from a file.
  */
 public class DependenciesSetter implements IPostNeededFilesVisitor {
 
@@ -65,7 +65,6 @@ public class DependenciesSetter implements IPostNeededFilesVisitor {
 	 */
 	private List<Vertex> visitedVertices;
 
-	
 	/**
 	 * La liste des sommets créés.<br>
 	 * Ceci pour ne pas créer deux fois un sommet qui a déjà été créé.<br>
@@ -87,7 +86,8 @@ public class DependenciesSetter implements IPostNeededFilesVisitor {
 	private List<IFile> changedFiles;
 
 	/**
-	 * Un graphe dans lequel rechercher des liens avec des fichiers déjà existant.
+	 * Un graphe dans lequel rechercher des liens avec des fichiers déjà
+	 * existant.
 	 */
 	private LayersGraph graph;
 
@@ -132,8 +132,6 @@ public class DependenciesSetter implements IPostNeededFilesVisitor {
 		this.changedFiles = changedFiles;
 	}
 
-	
-
 	/**
 	 * Empiler un sommet sur la pile des sommets en cours de visite avant de
 	 * visiter les dépendances du sommet (détection de cycle)
@@ -158,15 +156,10 @@ public class DependenciesSetter implements IPostNeededFilesVisitor {
 	 */
 	public void popVertex(Vertex v) {
 		if (!filesBeingVisited.remove(v)) {
-			OcamlPlugin.logError("error in DependenciesSetter:"
-					+ "popVertex: vertex not found");
+			OcamlPlugin.logError("error in DependenciesSetter:" + "popVertex: vertex not found");
 		}
 	}
 
-	
-	
-	
-	
 	/**
 	 * Visite d'abord le sommet puis traite ses fichiers requis.<br>
 	 * Cette méthode détecte les cycles.
@@ -184,25 +177,26 @@ public class DependenciesSetter implements IPostNeededFilesVisitor {
 			// Attention, si le sommet externe à été créé par ce visiteur, il
 			// faut quand même l'ajouter au graphe (sinon il est dans l'ancien
 			// graphe, on l'y laisse)
-			if(createdVertices.contains(v)){
-				if (!visitedVertices.contains(v)){
+			if (createdVertices.contains(v)) {
+				if (!visitedVertices.contains(v)) {
 					visitedVertices.add(v);
 				}
 			}
 			return false;
 		}
-		
+
 		// Récupérer le fichier associé
 		final IFile file = v.getFile();
 
 		// Si le fichier est déjà en train d'être visité, c'est un cycle.
 		if (filesBeingVisited.contains(v)) {
-			OcamlPlugin.logError("error in DependenciesSetter:visit: "
-					+ "cycle detection :" + file.getName(),
+			OcamlPlugin.logError(
+					"error in DependenciesSetter:visit: " + "cycle detection :" + file.getName(),
 					new CycleException());
-			Misc.popupErrorMessageBox("cycle detection : file :"
-					+ file.getName() + " met twice\nfix it and re-build", "cycle detection");
-			//Enlever le sommet des sommets visités car il ne faut pas le traiter.
+			Misc.popupErrorMessageBox("cycle detection : file :" + file.getName()
+					+ " met twice\nfix it and re-build", "cycle detection");
+			// Enlever le sommet des sommets visités car il ne faut pas le
+			// traiter.
 			visitedVertices.remove(v);
 			return false;
 		}
@@ -212,41 +206,36 @@ public class DependenciesSetter implements IPostNeededFilesVisitor {
 		// nouveau cycle. (Sinon on visite tout fichier qui n'est pas déjà dans
 		// le graphe qu'il soit modifié ou non ( les fichiers externes ne sont
 		// jamais modifiés par exemple) et tout fichier qui est modifié.)
-		if (changedFiles != null && !changedFiles.contains(file)
-				&& graph != null && graph.findVertex(file) != null) {
+		if (changedFiles != null && !changedFiles.contains(file) && graph != null
+				&& graph.findVertex(file) != null) {
 			// On va juste voir récursivement toutes les dépendances pour
 			// détecter un cycle.
 			return true;
 		}
 
-		
 		// Si on visite un fichier déjà visité par ce même visiteur, alors ce
 		// n'est pas la peine de recommencer.
 		if (visitedVertices.contains(v)) {
 			return false;
 		}
 
-		
-
 		// Récupérer les dépendances.
-		
+
 		// Ceci teste si le fichier associé existe (car il va lancer la commande
 		// ocamldep), il serait donc bon d'en profiter pour associer le bon type
 		// (ml, mli etc..)au sommet juste après. (Qui a besoin que le fichier
 		// existe pour trouver son extension)
 		final List<IFile> neededFiles = runDependenciesCommand(file);
-		//Associer la bonne extension à ce sommet.
+		// Associer la bonne extension à ce sommet.
 		v.setType();
 		// Si neededFiles est null, c'est que le fichier sur lequel la commande
 		// a été lancée n'existe pas.
 		if (neededFiles == null) {
-			OcamlPlugin.logError("error in DependenciesSetter:visit: "
-					+ "file not found :" + file.getName(),
+			OcamlPlugin.logError(
+					"error in DependenciesSetter:visit: " + "file not found :" + file.getName(),
 					new DependenciesGraphException());
 			return false;
 		}
-		
-		
 
 		// Il faut parcourir la liste actuelle de dépendances afin de détecter
 		// les dépendances qui deviennent inutilisées (auquel cas il faut
@@ -254,8 +243,7 @@ public class DependenciesSetter implements IPostNeededFilesVisitor {
 		// fichiers externes inutilisés) et celles qui existent déjà auquel cas
 		// on ne les revisite pas.
 		final List<Vertex> actualNeededVertices = v.getNeededFiles();
-		final List<Vertex> dependenciesToRemove = new ArrayList<Vertex>(
-				actualNeededVertices.size());
+		final List<Vertex> dependenciesToRemove = new ArrayList<Vertex>(actualNeededVertices.size());
 
 		// Pour chaque sommet dans les dépendances actuelles
 		for (Vertex vertex : actualNeededVertices) {
@@ -271,14 +259,13 @@ public class DependenciesSetter implements IPostNeededFilesVisitor {
 				dependenciesToRemove.add(vertex);
 			}
 		}
-		
+
 		for (Vertex vertex : dependenciesToRemove) {
 			if (!vertex.removeAffectedFile(v)) {
 				// Si v n'était pas dans les fichiers affectés c'est que les
 				// dépendances n'était alors pas cohérentes.
 				OcamlPlugin.logError("error in DependenciesSetter:" + "visit: "
-						+ "non reciprocal dependency found",
-						new DependenciesGraphException());
+						+ "non reciprocal dependency found", new DependenciesGraphException());
 			}
 			// Sinon la suppression s'est bien passée
 			else {
@@ -290,16 +277,13 @@ public class DependenciesSetter implements IPostNeededFilesVisitor {
 				// Si c'est un sommet externe que maintenant plus personne
 				// n'utilise, il faut le supprimer du graphe (ceci effacera le
 				// lien dans le navigateur)
-				if (vertex.isExternalFile()
-						&& (vertex.getAffectedFiles().size() == 0)) {
+				if (vertex.isExternalFile() && (vertex.getAffectedFiles().size() == 0)) {
 					// Remarque : ici on est sur que le graph existe.
 					graph.suppressVertex(vertex);
 				}
 			}
 		}
 
-		
-		
 		// Pour chaque fichier requis (qui n'était pas déjà dans les
 		// dépendances.)
 		for (IFile neededFile : neededFiles) {
@@ -310,7 +294,7 @@ public class DependenciesSetter implements IPostNeededFilesVisitor {
 
 			// S'il y a un graphe
 			if (graph != null) {
-				//Prendre le sommet du graphe s'il existe
+				// Prendre le sommet du graphe s'il existe
 				neededVertex = graph.findVertex(neededFile);
 			}
 			// si le sommet n'existe pas ou s'il n'y a pas
@@ -325,9 +309,8 @@ public class DependenciesSetter implements IPostNeededFilesVisitor {
 				// s'il n'a pas été créé par ce visiteur, le faire, en gérant
 				// le fait qu'il puisse référencer un fichier externe au projet.
 				if (neededVertex == null) {
-					neededVertex = new Vertex(neededFile, neededFile
-							.isLinked());
-					//Et l'ajouter aux sommets déjà créés
+					neededVertex = new Vertex(neededFile, neededFile.isLinked());
+					// Et l'ajouter aux sommets déjà créés
 					createdVertices.add(neededVertex);
 				}
 			}
@@ -360,7 +343,8 @@ public class DependenciesSetter implements IPostNeededFilesVisitor {
 	 * @return un tableau contenant les fichiers dont file dépend,
 	 *         <code>null</code> si un fichier n'existe pas. <br>
 	 * 
-	 * NOTE : ceci test si le fichier existe avant de lancer la commande.
+	 *         NOTE : ceci test si le fichier existe avant de lancer la
+	 *         commande.
 	 */
 	private List<IFile> runDependenciesCommand(IFile file) {
 
@@ -395,87 +379,56 @@ public class DependenciesSetter implements IPostNeededFilesVisitor {
 		// Et supprimer le fichier mli généré automatiquement, afin de ne pas
 		// l'avoir dans la liste des dépendances.
 		// On enlève le premier segment pour être relatif au projet
-		final IFile autoGeneratedMli = project.getFile(fileWorkspacePath
-				.removeFirstSegments(1).removeFileExtension().addFileExtension(
-						"mli"));
-		if ((autoGeneratedMli.exists())
-				&& (Misc.isGeneratedFile(autoGeneratedMli))) {
+		final IFile autoGeneratedMli = project.getFile(fileWorkspacePath.removeFirstSegments(1)
+				.removeFileExtension().addFileExtension("mli"));
+		if ((autoGeneratedMli.exists()) && (Misc.isGeneratedFile(autoGeneratedMli))) {
 			try {
 				autoGeneratedMli.delete(true, null);
 			} catch (CoreException ce) {
-				OcamlPlugin.logError(
-						"error in DependenciesSetter:runDependenciesCommand:" +
-						" error deleting file "
-								+ autoGeneratedMli.getName(), ce);
+				OcamlPlugin.logError("error in DependenciesSetter:runDependenciesCommand:"
+						+ " error deleting file " + autoGeneratedMli.getName(), ce);
 			}
 		}
 
 		// Executer commandRunner à la racine du workspace
-		final CommandRunner cmdDep = new CommandRunner(command
-				.toArray(new String[0]), project.getWorkspace().getRoot()
-				.getLocation().toOSString());
+		final CommandRunner cmdDep = new CommandRunner(command.toArray(new String[0]), project
+				.getWorkspace().getRoot().getLocation().toOSString());
 		final String msg = cmdDep.getStdout();
 
 		if (msg.length() != 0) {// si le message n'est pas vide
-			// Récupérer toutes les lignes
-			final String[] lines = (msg.split("\\n"));
+			// if dependance string is too long ocamldep splits it to the several strings and adds '\' symbol
+			// before '\n'. So merge this type of strings before splitting
+			final String[] lines = msg.replaceAll("\\\\\\n", "").split("\\n");
+			
+			// ocamldep from ocaml 4 inserts space symbol before : after the end
+			// of the target name.
+			// This give additional invalid ":" target. It needs to be removed.
+			ArrayList<String> allFiles = new ArrayList<String>(Arrays.asList(lines[0].split("\\s")));
 
-			// Petit "algorithme" permettant de concaténer une "ligne" étendue
-			// sur plusieurs lignes (avec le \ à la fin) en une seule ligne
-			// normale (sans \).
-			int i = 1;
-			while (lines[0].endsWith("\\")) {
-				// On enlève le \ final et on ajoute la ligne suivante
-				lines[0] = lines[0].substring(0, (lines[0].length() - 2))
-						.concat(lines[i]);
-				i++;
+			if (allFiles.size() > 1 && allFiles.get(1).equals(":")) {
+				allFiles.remove(1);
 			}
-
-			// Liste des fichiers dans cette ligne (\s signifie "whitespace
-			// character").
-			final String[] allFiles = lines[0].split("\\s");
-
-			// De la même façon que précédemment, il faut concaténer les noms
-			// avec espaces : "nom\ du\ fichier.ml"
-			// NOTE : incrémentation manuelle de j;
-			for (int j = 0; j < allFiles.length;) {
-				int k = 1;
-				while (allFiles[j].endsWith("\\")) {
-					// On enlève le \ final et on ajoute " " +le mot suivant
-					allFiles[j] = allFiles[j].substring(0,
-							(allFiles[j].length() - 1)).concat(" " +allFiles[j + k]);
-					// Mettre allFiles[j+k] à "" afin de ne pas le traiter comme
-					// un nom de fichier.
-					allFiles[j + k] = "";
-					k++;
-				}
-				//j doit passer directement à j+k
-				j = j+k;
-
-			}
-
-
+			
+			// remove empty entries and remove module name (first in list)
+			allFiles.removeAll(Arrays.asList(new String[] {""}));
+			allFiles.remove(0);
+			
 			// Récupérer dans l'ordre inverse tous les fichiers sauf le
 			// premier et changer les .cmo et .cmi en .ml et .mli
 			// NOTA : on ne considère pas les .cmx, ils renvoient de toutes
 			// façon au même fichier .ml
 			// TODO ici, que faire pour les mll et mly ?
-			final ArrayList<String> orderedDeps = new ArrayList<String>(
-					allFiles.length - 1);
-			for (int j = allFiles.length - 1; j > 0; j--) {
-				// Ignorer les noms de fichiers vides, ceci peut arriver suite à
-				// la concaténation des noms de fichiers avec espaces.
-				if (!allFiles[j].equals("")) {
-					String tempFileName = allFiles[j].replaceAll("\\.cmi\\z",
-							".mli");
-					tempFileName = tempFileName.replaceAll("\\.cmo\\z", ".ml");
-					orderedDeps.add(tempFileName);
-				}
+			final ArrayList<String> orderedDeps = new ArrayList<String>(allFiles.size());
+			
+			for (String dep : allFiles)
+			{
+				orderedDeps.add(dep.replaceAll("\\.cmi\\z", ".mli").replaceAll("\\.cmo\\z", ".ml"));
 			}
-
+			
+			Collections.reverse(orderedDeps);
+			
 			// transformer ce tableau de String en tableau de IFile
-			final ArrayList<IFile> orderedDepsAsIFile = new ArrayList<IFile>(
-					orderedDeps.size());
+			final ArrayList<IFile> orderedDepsAsIFile = new ArrayList<IFile>(orderedDeps.size());
 			// Attention : ici tempFileName n'est pas forcément le nom avec le
 			// chemin relatif à la racine du projet, il faut le rendre ainsi.
 			for (String tempFileName : orderedDeps) {
@@ -493,17 +446,15 @@ public class DependenciesSetter implements IPostNeededFilesVisitor {
 					// lié)
 					final String fileExt = tempFile.getFileExtension();
 					if (fileExt != null && fileExt.matches("mli")) {
-						if (Misc.isGeneratedFile(tempFile)
-								&& !tempFile.isLinked()) {
+						if (Misc.isGeneratedFile(tempFile) && !tempFile.isLinked()) {
 							// On regarde si on a à faire à un mli
 							// correspondant au fichier (dans ce cas
 							// l'ignorer via autoGeneratedMliToSkip) sinon,
 							// remplacer une dépendance à ce mli généré auto
 							// par une dépendance au ml correspondant.
-							final IPath tempFilePathNoExt = tempFilePath
+							final IPath tempFilePathNoExt = tempFilePath.removeFileExtension();
+							final IPath filePathNoExt = file.getFullPath().makeRelative()
 									.removeFileExtension();
-							final IPath filePathNoExt = file.getFullPath()
-									.makeRelative().removeFileExtension();
 							// Si les chemins sans extensions sont
 							// différents, alors il faut considérer une
 							// dépendance au ml correspondant
@@ -511,9 +462,8 @@ public class DependenciesSetter implements IPostNeededFilesVisitor {
 								// On enlève le premier segment pour
 								// rendre le chemin relatif au projet au
 								// lieu du workspace
-								final IPath tempFileMlPath = tempFilePathNoExt
-										.addFileExtension("ml")
-										.removeFirstSegments(1);
+								final IPath tempFileMlPath = tempFilePathNoExt.addFileExtension(
+										"ml").removeFirstSegments(1);
 								tempFile = project.getFile(tempFileMlPath);
 							} else {
 								autoGeneratedMliToSkip = true;
@@ -526,8 +476,7 @@ public class DependenciesSetter implements IPostNeededFilesVisitor {
 						orderedDepsAsIFile.add(tempFile);
 					}
 				} else {
-					OcamlPlugin.logError("error in DependenciesSetter:"
-							+ "error file not found : "
+					OcamlPlugin.logError("error in DependenciesSetter:" + "error file not found : "
 							+ (tempFile != null ? tempFile.getName() : ""),
 							new DependenciesGraphException());
 				}
@@ -569,15 +518,13 @@ public class DependenciesSetter implements IPostNeededFilesVisitor {
 		// le chemin relatif au workspace (car on renvoit un handle à partir du
 		// workspace et non du projet)
 		if (project.getLocation().isPrefixOf(filePath)) {
-			filePath = filePath.removeFirstSegments(workspace.getLocation()
-					.segmentCount());
+			filePath = filePath.removeFirstSegments(workspace.getLocation().segmentCount());
 		}
 		// Sinon, si c'est quand même un chemin absolu (donc externe au projet),
 		// lier les ressources au projet en ressources externes
 		else if (filePath.isAbsolute()) {
 
-			final IFolder externalFiles = project
-					.getFolder(OcamlBuilder.EXTERNALFILES);
+			final IFolder externalFiles = project.getFolder(OcamlBuilder.EXTERNALFILES);
 			// Récupérer le nom du fichier (ce path a forcément un dernier
 			// segment)
 			final String fileName = filePath.lastSegment();
@@ -587,21 +534,24 @@ public class DependenciesSetter implements IPostNeededFilesVisitor {
 				if (!externalFiles.exists()) {
 					externalFiles.create(true, true, null);
 					/*
-					 * Met l'attribut lecture seule au répertoire. Ceci n'empêche pas sa suppression
-					 * dans Eclipse, mais affiche un message supplémentaire de confirmation avant la
+					 * Met l'attribut lecture seule au répertoire. Ceci
+					 * n'empêche pas sa suppression dans Eclipse, mais affiche
+					 * un message supplémentaire de confirmation avant la
 					 * suppression.
 					 */
-					/*ResourceAttributes attributes = externalFiles.getResourceAttributes();
-					if (attributes != null) {
-						attributes.setReadOnly(true);
-						externalFiles.setResourceAttributes(attributes);
-					} else
-						OcamlPlugin.logError("cannot set 'External files' as read only");
-					*/
+					/*
+					 * ResourceAttributes attributes =
+					 * externalFiles.getResourceAttributes(); if (attributes !=
+					 * null) { attributes.setReadOnly(true);
+					 * externalFiles.setResourceAttributes(attributes); } else
+					 * OcamlPlugin
+					 * .logError("cannot set 'External files' as read only");
+					 */
 				}
 
 				final IFile file = externalFiles.getFile(fileName);
-				//Rafraichir pour voir les fichiers supprimés il y a peu de temps.
+				// Rafraichir pour voir les fichiers supprimés il y a peu de
+				// temps.
 				file.refreshLocal(IResource.DEPTH_ZERO, null);
 				// Créer le lien, sans faire de remplacement
 				// Note : isLinked teste l'existence et renvoit false si le

@@ -82,8 +82,11 @@ public class OcamlAnnotParser {
 		// read the file, line by line
 		String line;
 		try {
-			while ((line = inputStream.readLine()) != null)
+			while ((line = inputStream.readLine()) != null){
 				text.append(line + "\n");
+			}
+			// Windows: close file to unlock handle
+			inputStream.close();
 		} catch (IOException e) {
 			OcamlPlugin.logError("ocaml plugin error", e);
 			return null;
@@ -122,7 +125,6 @@ public class OcamlAnnotParser {
 			cacheEntry.addAnnotation(t);
 
 		cache.addFirst(cacheEntry);
-
 		// return the table of annotations from the file
 		return typeAnnotations;
 	}
